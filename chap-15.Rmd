@@ -1,0 +1,231 @@
+---
+title: "Autocorrelation in R"
+author: "Bidyut Kr. Ghosh"
+date: "13 August 2017"
+output: slidy_presentation
+---
+
+```{r setup, include=TRUE, comment=NA}
+knitr::opts_chunk$set(echo = FALSE, comment = NA)
+```
+
+<style>
+body {
+text-align: justify}
+</style>
+
+# Data Description and Model Estimation
+
+We will consider the Blaisdell Company example from page 489 of Applied Linear Regression Models (4th ed) by Kutner, Nachtsheim, and Neter.  
+We will try to explain the company sales, ‘comsales’ ($ millions) with the help of single predictor variable, viz. ‘indsales’ by fitting a simple linear regression model.  
+The data is given in the text format (blaisdell.txt).  
+Mathematically we write the model as follows:  
+ $$ {comsales}_t = \beta_0 +\beta_1 ({indsales}_t) +u_t$$ 
+- Importing the data into R
+
+```{r,include=TRUE}
+blaisdell<-read.table(file = "/media/bidyut/HP-G6/RESEARCH/RESEARCH METHODOLOGY/Book_Publication/DATA SETS/blaisdell.txt" ,header = TRUE)
+# To view the dataset
+View(blaisdell)
+# To attach the dataset into R-session
+attach(blaisdell)
+```
+
+- To fit the initial model to explain company sales with industry sales
+
+```{r,include=TRUE}
+fit1<-lm(comsales~indsales)
+summary(fit1)
+```
+
+# Residual Diagnostic
+
+- To save the residuals(uhat1) of the model 
+
+```{r,include=TRUE}
+blaisdell$uhat1<-resid(fit1)
+attach(blaisdell)
+```
+
+- To plot the residuals against time
+
+```{r,include=TRUE}
+plot(uhat1, type = "l")
+library(ggplot2)
+ggplot(blaisdell, aes(time, uhat1))+geom_line()
+```
+
+
+# Durbin-Watson test
+
+```{r,include=TRUE}
+library(car)
+durbinWatsonTest(fit1)
+```
+
+
+# Remedial Measures: Cochrane-Orcutt Procedure 
+
+```{r,include=TRUE}
+library(orcutt)
+fit2<-cochrane.orcutt(fit1)
+summary(fit2)
+```
+
+# Remedial Measures: first-difference transformation model with no intercept term
+
+```{r,include=TRUE}
+fit3<-lm(diff(comsales,1)~0+diff(indsales,1))
+summary(fit3)
+```
+
+-Durbin-Watson test on the first-difference model
+
+```{r,include=TRUE}
+durbinWatsonTest(fit3)
+```
+
+# Advanced Autocorrelation Problem using the dataset "us_consumption.xls"
+
+- Importing the dataset using "readxl" package
+
+```{r,include=TRUE}
+library(readxl)
+us_consumption<-read_excel("/media/bidyut/HP-G6/RESEARCH/RESEARCH METHODOLOGY/Book_Publication/DATA SETS/us_consumption.xls" , sheet = "Sheet1", col_names = TRUE,col_types = NULL, skip = 0)
+# To view the dataset
+View(us_consumption)
+# To attach the dataset into Rsession
+attach(us_consumption)
+```
+
+
+# Now we run the model to explain logarithm of consumption using logarithms of X variables in R and the results are shown below:
+
+```{r,include=TRUE}
+fit4<- lm(lnconsump~lndpi+lnwealth+interest)
+summary(fit4)
+```
+
+
+# To save the residuals of the model fit
+
+```{r,include=TRUE}
+us_consumption$uhat1<-ts(resid(fit4))
+attach(us_consumption)
+```
+
+
+# To plot the residuals of the model againt time
+
+```{r,include=TRUE}
+plot(uhat1, type="l")
+library(ggplot2)
+ggplot(us_consumption, aes(time, uhat1))+geom_line()
+```
+
+
+# To create the one-period lag of the saved residuals
+
+```{r,include=TRUE}
+us_consumption$luhat1<-lag(uhat1, -1)
+```
+
+
+# To plot the Current vs Lagged Residuals using basic graphics
+
+```{r,include=TRUE}
+attach(us_consumption)
+plot(uhat1[1:54], luhat1[2:55], pch="*", main = "Current vs. Lagged Residuals")
+abline(lm(luhat1[2:55]~uhat1[1:54]), col="red")
+```
+
+
+# To plot the Current vs Lagged Residuals using advanced graphics
+
+```{r,include=TRUE}
+ggplot(us_consumption, aes(luhat1[2:55], uhat1[1:54]))+geom_point()+geom_smooth(method = "lm", se=FALSE)
+```
+
+
+
+# To conduct the Durbin-Watson test
+
+```{r,include=TRUE}
+library(car)
+durbinWatsonTest(fit4)
+```
+
+
+# To perform the Breusch–Godfrey (BG) test of autocorrelation.
+
+```{r,include=TRUE}
+library(lmtest)
+bgtest(fit4, order = 1, type = "Chisq")
+```
+
+
+# Remedial Measures for Autocorrelation: Using the first difference method
+
+```{r,include=TRUE}
+fit5<- lm(diff(lnconsump,1)~0+diff(lndpi,1)+diff(lnwealth,1)+diff(interest,1))
+summary(fit5)
+```
+
+
+
+# Breusch–Godfrey (BG) test of autocorrelation for the first difference model
+
+```{r,include=TRUE}
+bgtest(fit5,order = 1, type = "Chisq")
+```
+
+# Remedial Measures for Autocorrelation: Generalized Transformation
+
+- To save the residuals of the initial model (fit4)
+
+```{r,include=TRUE}
+uhat4<-resid(fit4)
+```
+
+- To generate the one-period lag of the residuals.
+
+```{r,include=TRUE}
+library(dplyr)
+us_consumption$luhat4<-lag(uhat4, n=1L)
+```
+
+
+# For estimating the rho
+
+```{r,include=TRUE}
+attach(us_consumption)
+fit6<-lm(uhat4~0+luhat4)
+summary(fit6)
+```
+
+
+# Thus, rho hat is found to be 0.3247. Further, we can recheck it approximately using D-W statistic
+
+```{r,include=TRUE}
+durbinWatsonTest(fit4)
+```
+
+
+# Complete transformation
+
+```{r,include=TRUE}
+us_consumption$Cstar<- lnconsump-0.3247*lag(lnconsump,n=1L)
+us_consumption$Ystar<-lndpi-0.3247*lag(lndpi,n=1L)
+us_consumption$Wstar<-lnwealth-0.3247*lag(lnwealth,n=1L)
+us_consumption$rstar<-interest-0.3247*lag(interest,n=1L)
+attach(us_consumption)
+```
+
+# To estimate the transformed model  
+
+```{r,include=TRUE}
+fit7<-lm(Cstar~Ystar+Wstar+rstar)
+summary(fit7)
+```
+
+
